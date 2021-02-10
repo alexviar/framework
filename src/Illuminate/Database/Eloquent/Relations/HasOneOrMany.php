@@ -238,14 +238,15 @@ abstract class HasOneOrMany extends Relation
      *
      * @param  array  $attributes
      * @param  array  $values
+     * @param  boolean  $defer
      * @return \Illuminate\Database\Eloquent\Model
      */
-    public function updateOrCreate(array $attributes, array $values = [])
+    public function updateOrCreate(array $attributes, array $values = [], bool $defer = false)
     {
-        return tap($this->firstOrNew($attributes), function ($instance) use ($values) {
+        return tap($this->firstOrNew($attributes), function ($instance) use ($values, $defer) {
             $instance->fill($values);
 
-            $instance->save();
+            $this->save($instance, $defer);
         });
     }
 
@@ -253,10 +254,20 @@ abstract class HasOneOrMany extends Relation
      * Attach a model instance to the parent model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  boolean  $defer
      * @return \Illuminate\Database\Eloquent\Model|false
      */
-    public function save(Model $model)
+    public function save(Model $model, bool $defer = false)
     {
+        if($defer){
+            $this->parent::saved(function($savedModel) use($model){
+                if($this->parent->is($savedModel)){
+                    $this->save($model);
+                }
+            });
+            return $model;
+        }
+
         $this->setForeignAttributesForCreate($model);
 
         return $model->save() ? $model : false;
@@ -266,58 +277,29 @@ abstract class HasOneOrMany extends Relation
      * Attach a collection of models to the parent instance.
      *
      * @param  iterable  $models
+     * @param  boolean  $defer
      * @return iterable
      */
-    public function saveMany($models)
+    public function saveMany($models, bool $defer = false)
     {
         foreach ($models as $model) {
-            $this->save($model);
+            $this->save($model, $defer);
         }
 
         return $models;
-    }
-    
-    /**
-     * Attatch a model instance to the parente model when it is saved
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return \Illuminate\Database\Eloquent\Model|false
-     */
-    public function deferSave(Model $model){
-        $this->parent::saved(function($savedModel) use($model){
-            if($this->parent->is($savedModel)){
-                $this->save($model);
-            }
-        });
-    }
-    
-
-    /**
-     * Attach a collection of models to the parent instance when it is saved.
-     *
-     * @param  iterable  $models
-     * @return iterable
-     */
-    public function deferSaveMany(Model $model){
-        $this->parent::saved(function($savedModel) use($model){
-            if($this->parent->is($savedModel)){
-                $this->save($model);
-            }
-        });
     }
 
     /**
      * Create a new instance of the related model.
      *
      * @param  array  $attributes
+     * @param  boolean  $defer
      * @return \Illuminate\Database\Eloquent\Model
      */
-    public function create(array $attributes = [])
+    public function create(array $attributes = [], $defer = false)
     {
-        return tap($this->related->newInstance($attributes), function ($instance) {
-            $this->setForeignAttributesForCreate($instance);
-
-            $instance->save();
+        return tap($this->related->newInstance($attributes), function ($instance, $defer) {
+            $this->save($instance, $defer);
         });
     }
 
@@ -325,14 +307,15 @@ abstract class HasOneOrMany extends Relation
      * Create a Collection of new instances of the related model.
      *
      * @param  iterable  $records
+     * @param  boolean  $defer
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function createMany(iterable $records)
+    public function createMany(iterable $records, $defer = false)
     {
         $instances = $this->related->newCollection();
 
         foreach ($records as $record) {
-            $instances->push($this->create($record));
+            $instances->push($this->create($record, $defer));
         }
 
         return $instances;
