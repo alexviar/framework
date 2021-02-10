@@ -276,6 +276,35 @@ abstract class HasOneOrMany extends Relation
 
         return $models;
     }
+    
+    /**
+     * Attatch a model instance to the parente model when it is saved
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return \Illuminate\Database\Eloquent\Model|false
+     */
+    public function deferSave(Model $model){
+        $this->parent::saved(function($savedModel) use($model){
+            if($this->parent->is($savedModel)){
+                $this->save($model);
+            }
+        });
+    }
+    
+
+    /**
+     * Attach a collection of models to the parent instance when it is saved.
+     *
+     * @param  iterable  $models
+     * @return iterable
+     */
+    public function deferSaveMany(Model $model){
+        $this->parent::saved(function($savedModel) use($model){
+            if($this->parent->is($savedModel)){
+                $this->save($model);
+            }
+        });
+    }
 
     /**
      * Create a new instance of the related model.
